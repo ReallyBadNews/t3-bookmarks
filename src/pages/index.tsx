@@ -1,19 +1,15 @@
 import type { NextPage } from "next";
 import Head from "next/head";
 import { ChangeEventHandler, FormEventHandler, useState } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { trpc } from "../utils/trpc";
-
-type TechnologyCardProps = {
-  name: string;
-  description: string;
-  documentation: string;
-};
 
 const Home: NextPage = () => {
   const hello = trpc.useQuery(["example.getAll"]);
   const create = trpc.useMutation(["example.create"]);
   const del = trpc.useMutation(["example.delete"]);
   const utils = trpc.useContext();
+  const { data: session } = useSession();
   const [name, setName] = useState("");
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
@@ -54,39 +50,44 @@ const Home: NextPage = () => {
         <link href="/favicon.ico" rel="icon" />
       </Head>
 
-      <main className="container mx-auto flex h-screen flex-col items-center justify-center p-4">
-        <h1 className="text-5xl font-extrabold leading-normal text-gray-700 md:text-[5rem]">
+      <main className="container mx-auto flex h-screen flex-col items-center  px-4 py-8">
+        <h1 className="text-5xl font-extrabold  text-gray-700 md:text-[5rem]">
           {`Create `}
           <span className="text-purple-300">T3</span>
 
           {` App`}
         </h1>
-        <p className="text-2xl text-slate-600">This stack uses:</p>
-        <div className="mt-3 grid gap-3 pt-3 text-center md:grid-cols-2 lg:w-2/3">
-          <TechnologyCard
-            description="The React framework for production"
-            documentation="https://nextjs.org/"
-            name="NextJS"
-          />
-          <TechnologyCard
-            description="Strongly typed programming language that builds on JavaScript, giving you better tooling at any scale"
-            documentation="https://www.typescriptlang.org/"
-            name="TypeScript"
-          />
-          <TechnologyCard
-            description="Rapidly build modern websites without ever leaving your HTML"
-            documentation="https://tailwindcss.com/"
-            name="TailwindCSS"
-          />
-          <TechnologyCard
-            description="End-to-end typesafe APIs made easy"
-            documentation="https://trpc.io/"
-            name="tRPC"
-          />
-        </div>
+        <p className="text-2xl text-slate-600">Leave a message</p>
+        {session?.user ? (
+          <div className="flex flex-col items-center">
+            <p>{`Hello, ${session.user.name}`}</p>
+            <button
+              onClick={() => {
+                return signOut();
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              return signIn("github");
+            }}
+          >
+            Sign In
+          </button>
+        )}
         <form className="mt-8" onSubmit={handleSubmit}>
+          <label
+            className="block text-sm font-medium text-gray-700"
+            htmlFor="messsage"
+          >
+            Message:
+          </label>
           <input
             className="rounded-lg border-2 border-gray-500 bg-slate-100 py-2 px-4 text-gray-700 focus:border-purple-500 focus:bg-white focus:outline-none"
+            id="messsage"
             value={name}
             onChange={handleChange}
           />
@@ -96,41 +97,22 @@ const Home: NextPage = () => {
             return (
               <div key={item.id} className="flex gap-4">
                 <p>{item.text}</p>
-                <button
-                  className="rounded-lg bg-red-100 px-4 py-2 text-sm font-bold  text-red-500 hover:bg-red-300"
-                  onClick={() => {
-                    return handleDelete(item.id);
-                  }}
-                >
-                  Delete
-                </button>
+                {session?.user ? (
+                  <button
+                    className="rounded-lg bg-red-100 px-4 py-2 text-sm font-bold  text-red-500 hover:bg-red-300"
+                    onClick={() => {
+                      return handleDelete(item.id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                ) : null}
               </div>
             );
           })}
         </div>
       </main>
     </>
-  );
-};
-
-const TechnologyCard = ({
-  name,
-  description,
-  documentation,
-}: TechnologyCardProps) => {
-  return (
-    <section className="flex cursor-default flex-col justify-center rounded-lg border-2 border-gray-500 p-6 shadow-xl duration-500 motion-safe:hover:scale-105">
-      <h2 className="text-lg text-gray-700">{name}</h2>
-      <p className="text-sm text-gray-600">{description}</p>
-      <a
-        className="mt-3 text-sm text-violet-500 underline decoration-dotted underline-offset-2"
-        href={documentation}
-        rel="noreferrer"
-        target="_blank"
-      >
-        Documentation
-      </a>
-    </section>
   );
 };
 
