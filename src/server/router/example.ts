@@ -27,6 +27,15 @@ export const exampleRouter = createRouter()
       });
     },
   })
+  .mutation("update", {
+    input: z.object({ id: z.string(), text: z.string() }),
+    async resolve({ ctx, input }) {
+      return await ctx.prisma.example.update({
+        where: { id: input.id },
+        data: { text: input.text },
+      });
+    },
+  })
   .mutation("delete", {
     input: z.object({ id: z.string() }),
     async resolve({ ctx, input }) {
