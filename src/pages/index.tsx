@@ -1,12 +1,79 @@
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { type NextPage } from "next";
+import { signIn, signOut, useSession } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { signIn, signOut, useSession } from "next-auth/react";
 
+import type { FormEventHandler } from "react";
 import { trpc } from "../utils/trpc";
 
 const Home: NextPage = () => {
   const hello = trpc.example.hello.useQuery({ text: "from tRPC" });
+  const allStashes = trpc.example.getAll.useQuery();
+  const utils = trpc.useContext();
+
+  const create = trpc.example.create.useMutation({
+    async onMutate({ url, title, description }) {
+      await utils.example.getAll.cancel();
+      const stashes = allStashes.data ?? [];
+      utils.example.getAll.setData([
+        ...stashes,
+        {
+          id: `${Math.random()}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          url,
+          title,
+          description,
+          host: "localhost",
+          slug: "test",
+          body: "test",
+          mdxBody: "test",
+          authorEmail: "test",
+        },
+      ]);
+    },
+    onError(err, newPost, ctx) {
+      // If the mutation fails, use the context-value from onMutate
+      console.error("onError", { err, newPost, ctx });
+      utils.example.getAll.setData(undefined, ctx?.prevData);
+    },
+    onSettled() {
+      // Sync with server once mutation has settled
+      utils.example.getAll.invalidate();
+    },
+    retry: 3,
+  });
+
+  const deleteStash = trpc.example.delete.useMutation({
+    async onMutate(id) {
+      await utils.example.getAll.cancel();
+      utils.example.getAll.setData((prev) => {
+        return prev?.filter((s) => s.id !== id);
+      });
+    },
+    onError(err, id, ctx) {
+      // If the mutation fails, use the context-value from onMutate
+      console.error("onError", { err, id, ctx });
+      utils.example.getAll.setData(undefined, ctx?.prevData);
+    },
+    onSettled() {
+      // Sync with server once mutation has settled
+      utils.example.getAll.invalidate();
+    },
+    retry: 3,
+  });
+
+  const submitHandler: FormEventHandler = async (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.target as HTMLFormElement);
+    console.log("[formData]", formData);
+    const url = formData.get("url") as string;
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    console.log("[form]", { url, title, description });
+    create.mutate({ url, title, description });
+  };
 
   return (
     <>
@@ -43,13 +110,51 @@ const Home: NextPage = () => {
             </Link>
           </div>
           <div className="flex flex-col items-center gap-2">
+            {allStashes.data?.map((stash) => {
+              return (
+                <div key={stash.id} className="flex items-center gap-2">
+                  <p className="text-2xl text-white">
+                    {stash.title} - {stash.description}
+                  </p>
+                  <button
+                    onClick={() => deleteStash.mutate(stash.id)}
+                    className="rounded-full bg-red-500/70 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
+                  >
+                    Delete
+                  </button>
+                </div>
+              );
+            })}
             <p className="text-2xl text-white">
               {hello.data ? hello.data.greeting : "Loading tRPC query..."}
             </p>
             <AuthShowcase />
+            <form onSubmit={submitHandler}>
+              <div className="flex flex-col gap-2">
+                <label className="text-white" htmlFor="url">
+                  URL
+                </label>
+                <input id="url" name="url" />
+                <label className="text-white" htmlFor="title">
+                  Title
+                </label>
+                <input id="name" name="title" />
+                <label className="text-white" htmlFor="description">
+                  Description
+                </label>
+                <input id="description" name="description" />
+                <button
+                  className="rounded-full bg-white/10 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
+                  type="submit"
+                >
+                  Submit
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </main>
+      <ReactQueryDevtools initialIsOpen={false} />
     </>
   );
 };
@@ -61,18 +166,18 @@ const AuthShowcase: React.FC = () => {
 
   const { data: secretMessage } = trpc.auth.getSecretMessage.useQuery(
     undefined, // no input
-    { enabled: sessionData?.user !== undefined },
+    { enabled: sessionData?.user !== undefined }
   );
 
   return (
     <div className="flex flex-col items-center justify-center gap-4">
       <p className="text-center text-2xl text-white">
-        {sessionData && <span>Logged in as {sessionData?.user?.name}</span>}
+        {sessionData && <span>Logged in as {sessionData.user?.name}</span>}
         {secretMessage && <span> - {secretMessage}</span>}
       </p>
       <button
         className="rounded-full bg-white/10 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
-        onClick={sessionData ? () => signOut() : () => signIn()}
+        onClick={sessionData ? () => signOut() : () => signIn("github")}
       >
         {sessionData ? "Sign out" : "Sign in"}
       </button>
